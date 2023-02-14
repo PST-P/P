@@ -1,7 +1,4 @@
-﻿using System.Diagnostics;
-using System.IO;
-
-namespace Plang.Compiler.Backend.CSharp
+﻿namespace Plang.Compiler.Backend.CSharp
 {
     internal class Constants
     {
@@ -51,5 +48,97 @@ namespace -projectName-
         }
     }
 }";
+        // TODO: Custom implementation
+        internal static readonly string tObsCs = @"
+// Copyright (c) Microsoft Corporation.
+// Licensed under the MIT License.
+
+using System.Collections.Generic;
+using Plang.CSharpRuntime.Values;
+
+namespace PImplementation
+{
+    public sealed class tObserver : IPrtValue
+    {
+        private static tObserver _instance;
+        private Dictionary<string, string> _states = new Dictionary<string, string>();
+
+        // Singleton pattern
+        private tObserver()
+        {
+        }
+
+        public static tObserver GetInstance()
+        {
+            if (_instance == null)
+            {
+                _instance = new tObserver();
+            }
+
+            return _instance;
+        }
+
+        public static void SetState(PrtString m, PrtString s)
+        {
+            GetInstance()._states[m] = s;
+        }
+
+        public static PrtString GetState(PrtString m)
+        {
+            return GetInstance()._states.GetValueOrDefault(m, ""none"");
+    }
+
+    public bool Equals(IPrtValue other)
+    {
+        return other is tObserver;
+    }
+
+    public IPrtValue Clone()
+    {
+        var cloned = new tObserver();
+        return cloned;
+    }
+
+    public string ToEscapedString()
+    {
+        return ""Observer"";
+    }
+}
+}
+
+";
+
+        // Implements functions to use observer pattern
+        internal static readonly string tObsCsFunctions = @"
+using Plang.CSharpRuntime;
+using Plang.CSharpRuntime.Values;
+
+namespace PImplementation
+{
+    public static partial class GlobalFunctions
+    {
+        public static void SetState(PrtString m, PrtString s, PMachine machine)
+        {
+            machine.LogLine(""Observer: setting state "" + s + "" to machine "" + m);
+        tObserver.SetState(m, s);
+    }
+
+    public static PrtString GetState(PrtString m, PMachine machine)
+    {
+        machine.LogLine(""Observer: getting state from machine "" + m);
+        return tObserver.GetState(m);
+    }
+}
+}
+";
+        // Define P global functions to observation pattern
+        internal static readonly string tObsP = @"
+type tObserver;
+
+fun SetState(m : string, s: string);
+fun GetState(m : string) : string;
+
+";
+        // TODO: End custom implementation
     }
 }

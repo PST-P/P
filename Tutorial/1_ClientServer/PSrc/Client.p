@@ -34,6 +34,7 @@ machine Client
 
     entry (input : (serv : BankServer, accountId: int, balance : int))
     {
+      SetState("client", "Init");
       server = input.serv;
       currentBalance =  input.balance;
       accountId = input.accountId;
@@ -46,6 +47,7 @@ machine Client
   state WithdrawMoney {
     entry {
       var index : int;
+      SetState("client", "WithdrawMoney");
 
       // If current balance is <= 10 then we need more deposits before any more withdrawal
       if(currentBalance <= 10)
@@ -57,6 +59,7 @@ machine Client
     }
 
     on eWithDrawResp do (resp: tWithDrawResp) {
+      SetState("client", "WithdrawMoney.eWithDrawResp");
       // bank always ensures that a client has atleast 10 dollars in the account
       assert resp.balance >= 10, "Bank balance must be greater than 10!!";
       if(resp.status == WITHDRAW_SUCCESS) // withdraw succeeded
@@ -87,6 +90,7 @@ machine Client
 
   state NoMoneyToWithDraw {
     entry {
+      SetState("client", "NoMoneyToWithDraw");
       // if I am here then the amount of money in my account should be exactly 10
       assert currentBalance == 10, "Hmm, I still have money that I can withdraw but I have reached NoMoneyToWithDraw state!";
       print format ("No Money to withdraw, waiting for more deposits!");

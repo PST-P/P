@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
 
 namespace Plang.Compiler.Backend.CSharp
 {
@@ -42,6 +43,21 @@ namespace Plang.Compiler.Backend.CSharp
                 string mainCode = Constants.mainCode.Replace("-projectName-", job.ProjectName);
                 File.WriteAllText(mainFilePath, mainCode);
             }
+            
+            // TODO: Custom implementation
+            var pObserverFilePath = Path.Combine(job.ProjectRootPath.FullName, "PSrc", "Observer.p");
+            File.WriteAllText(pObserverFilePath, Constants.tObsP);
+
+            var foreignFolderPath = Path.Combine(job.ProjectRootPath.FullName, "PForeign");
+            var foreignObsCsFilePath = Path.Combine(foreignFolderPath, "Observer.cs");
+            Directory.CreateDirectory(foreignFolderPath);
+            File.WriteAllText(foreignObsCsFilePath, Constants.tObsCs);
+            
+            var foreignObsFuncCsFilePath = Path.Combine(foreignFolderPath, "ObserverFunctions.cs");
+            Directory.CreateDirectory(foreignFolderPath);
+            File.WriteAllText(foreignObsFuncCsFilePath, Constants.tObsCsFunctions);
+            
+            // TODO: End custom implementation
 
             // compile the csproj file
             string[] args = new[] { "build -c Release", csprojName };
@@ -751,6 +767,65 @@ namespace Plang.Compiler.Backend.CSharp
                         $"{GetCSharpType(param.Type)} {context.Names.GetNameForDecl(param)} = ({GetCSharpType(param.Type)})(gotoPayload ?? ((PEvent)currentMachine_dequeuedEvent).Payload);");
                     context.WriteLine(output, "this.gotoPayload = null;");
                 }
+
+                // TODO: Custom implementation
+                if (function.Owner is { IsSpec: false })
+                {
+                    PLanguageType myType = PrimitiveType.String;
+                    context.WriteLine(output, $"{GetCSharpType(myType, true)} TMP_tmp_m = {GetDefaultValue(myType)};");
+                    context.WriteLine(output, $"{GetCSharpType(myType, true)} TMP_tmp_s = {GetDefaultValue(myType)};");
+                
+                    var m = context.Names.GetNameForDecl(function.Owner);
+                    var refAnonName = context.Names.GetNameForDecl(function);
+                    var sName = "";
+                    
+                    using var states = function.Owner.AllStates().GetEnumerator();
+                    while (sName.Equals("") && states.MoveNext())
+                    {
+                        // Get current state
+                        var state = states.Current!;
+                        
+                        // If is not entry state.
+                        if (state.Entry != null)
+                        {
+                            var lName = context.Names.GetNameForDecl(state.Entry);
+                            
+                            if (refAnonName.Equals(lName))
+                            {
+                                sName = context.Names.GetNameForDecl(state);
+                            }
+                        }
+                        
+                        // Get all events
+                        using var eventsHandler = state.AllEventHandlers.GetEnumerator();
+                        while (sName.Equals("") && eventsHandler.MoveNext())
+                        {
+                            // Get current event
+                            var eventHandler = eventsHandler.Current;
+                                
+                            switch (eventHandler.Value)
+                            {
+                                // Check if event is an action event
+                                case EventDoAction doAction:
+                                    var anonName = context.Names.GetNameForDecl(doAction.Target);
+                                    anonName = doAction.Target.IsAnon ? anonName : $"_{anonName}";
+                                    var action = context.Names.GetNameForDecl(eventHandler.Key);
+
+                                    if (anonName.Equals(refAnonName))
+                                    {
+                                        sName = $"{context.Names.GetNameForDecl(state)}.{action}";
+                                    }
+
+                                    break;
+                            }
+                        }
+                    }
+
+                    context.WriteLine(output, $"TMP_tmp_m = (PrtString)(((PrtString) String.Format(\"{m}\")));");
+                    context.WriteLine(output, $"TMP_tmp_s = (PrtString)(((PrtString) String.Format(\"{sName}\")));");
+                    context.WriteLine(output, "GlobalFunctions.SetState(TMP_tmp_m, TMP_tmp_s, currentMachine);");
+                }
+                // TODO: End custom implementation
             }
 
             foreach (Variable local in function.LocalVariables)
