@@ -10,7 +10,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.Serialization;
 
 namespace Plang.Compiler.Backend.CSharp
 {
@@ -44,7 +43,7 @@ namespace Plang.Compiler.Backend.CSharp
                 File.WriteAllText(mainFilePath, mainCode);
             }
             
-            // TODO: Custom implementation
+            // PST-P: We have added some classes for our implementation of Observer pattern
             var pObserverFilePath = Path.Combine(job.ProjectRootPath.FullName, "PSrc", "Observer.p");
             File.WriteAllText(pObserverFilePath, Constants.tObsP);
 
@@ -54,10 +53,11 @@ namespace Plang.Compiler.Backend.CSharp
             File.WriteAllText(foreignObsCsFilePath, Constants.tObsCs);
             
             var foreignObsFuncCsFilePath = Path.Combine(foreignFolderPath, "ObserverFunctions.cs");
-            Directory.CreateDirectory(foreignFolderPath);
             File.WriteAllText(foreignObsFuncCsFilePath, Constants.tObsCsFunctions);
             
-            // TODO: End custom implementation
+            var foreignConvertersCsFilePath = Path.Combine(foreignFolderPath, "Converters.cs");
+            File.WriteAllText(foreignConvertersCsFilePath, Constants.tConverters);
+            // PST-P: End 
 
             // compile the csproj file
             string[] args = new[] { "build -c Release", csprojName };
@@ -490,14 +490,31 @@ namespace Plang.Compiler.Backend.CSharp
             WriteNameSpacePrologue(context, output);
 
             string declName = context.Names.GetNameForDecl(machine);
-            context.WriteLine(output, $"internal partial class {declName} : PMachine");
+            // PST-P: Original visibility was internal, now is public
+            context.WriteLine(output, $"public partial class {declName} : PMachine");
             context.WriteLine(output, "{");
 
             foreach (Variable field in machine.Fields)
             {
-                context.WriteLine(output,
-                    $"private {GetCSharpType(field.Type)} {context.Names.GetNameForDecl(field)} = {GetDefaultValue(field.Type)};");
+                // PST-P: We have modified the visibility of the properties and added getters and setters to be able
+                // to serialize to json
+                switch (field.Type)
+                {
+                    case PrimitiveType pt1 when pt1.IsSameTypeAs(PrimitiveType.Int):
+                    case PrimitiveType pt2 when pt2.IsSameTypeAs(PrimitiveType.String):
+                    case EnumType _:
+                            context.WriteLine(output,
+                            $"public {GetCSharpType(field.Type)} {context.Names.GetNameForDecl(field)} {{get;set;}} = {GetDefaultValue(field.Type)};");
+                            break;
+                    default:
+                        context.WriteLine(output,
+                            $"private {GetCSharpType(field.Type)} {context.Names.GetNameForDecl(field)} = {GetDefaultValue(field.Type)};");
+                    break;
+                }
             }
+            
+            // PST-P: Add to machine extra variable to know current state
+            context.WriteLine(output, $"public PrtString myState {{get;set;}} = ((PrtString)\"\");");
 
             //create the constructor event
             string cTorType = GetCSharpType(machine.PayloadType, true);
@@ -547,6 +564,8 @@ namespace Plang.Compiler.Backend.CSharp
                 context.WriteLine(output, $"this.creates.Add(nameof({context.Names.GetNameForDecl(iCreate)}));");
             }
 
+            // PST-P: Adding dump of current instance
+            context.WriteLine(output, $"GlobalFunctions.AddMachine(\"{declName}\", this);");
             context.WriteLine(output, "}");
             context.WriteLine(output);
         }
@@ -768,11 +787,12 @@ namespace Plang.Compiler.Backend.CSharp
                     context.WriteLine(output, "this.gotoPayload = null;");
                 }
 
-                // TODO: Custom implementation
+                // PST-P: We have added this fragment of code to dump information about current P-machine into our
+                // observer pattern
                 if (function.Owner is { IsSpec: false })
                 {
                     PLanguageType myType = PrimitiveType.String;
-                    context.WriteLine(output, $"{GetCSharpType(myType, true)} TMP_tmp_m = {GetDefaultValue(myType)};");
+                    // context.WriteLine(output, $"{GetCSharpType(myType, true)} TMP_tmp_m = {GetDefaultValue(myType)};");
                     context.WriteLine(output, $"{GetCSharpType(myType, true)} TMP_tmp_s = {GetDefaultValue(myType)};");
                 
                     var m = context.Names.GetNameForDecl(function.Owner);
@@ -821,11 +841,13 @@ namespace Plang.Compiler.Backend.CSharp
                         }
                     }
 
-                    context.WriteLine(output, $"TMP_tmp_m = (PrtString)(((PrtString) String.Format(\"{m}\")));");
+                    // context.WriteLine(output, $"TMP_tmp_m = (PrtString)(((PrtString) String.Format(\"{m}\")));");
                     context.WriteLine(output, $"TMP_tmp_s = (PrtString)(((PrtString) String.Format(\"{sName}\")));");
-                    context.WriteLine(output, "GlobalFunctions.SetState(TMP_tmp_m, TMP_tmp_s, currentMachine);");
+                    context.WriteLine(output, "this.myState = TMP_tmp_s;");
+                    // context.WriteLine(output, "GlobalFunctions.SetState(TMP_tmp_m, TMP_tmp_s, currentMachine);");
+                    // context.WriteLine(output, "GlobalFunctions.Decode(currentMachine, currentMachine);");
                 }
-                // TODO: End custom implementation
+                // PST-P: End 
             }
 
             foreach (Variable local in function.LocalVariables)

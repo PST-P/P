@@ -48,20 +48,25 @@ namespace -projectName-
         }
     }
 }";
-        // TODO: Custom implementation
+        // PST-P: Definition of tObserver class implemented on C#
         internal static readonly string tObsCs = @"
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
 using System.Collections.Generic;
 using Plang.CSharpRuntime.Values;
+using System.Text.Json;
+using Plang.CSharpRuntime;
+using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 
 namespace PImplementation
 {
     public sealed class tObserver : IPrtValue
     {
         private static tObserver _instance;
-        private Dictionary<string, string> _states = new Dictionary<string, string>();
+        private readonly ConcurrentDictionary<string, Dictionary<int, PMachine>> _info = new ConcurrentDictionary<string, Dictionary<int, PMachine>>();
+        private readonly ConcurrentDictionary<string, int> _counter = new ConcurrentDictionary<string, int>();
 
         // Singleton pattern
         private tObserver()
@@ -78,67 +83,144 @@ namespace PImplementation
             return _instance;
         }
 
-        public static void SetState(PrtString m, PrtString s)
+        public static void AddMachine(PrtString name, PMachine machine)
         {
-            GetInstance()._states[m] = s;
+            // Get information from instance
+            var info = GetInstance()._info;
+            var counter = GetInstance()._counter;
+            var identifier = counter.GetValueOrDefault(name, 0);
+            Dictionary<int, PMachine> machines;
+
+            // We identify the machine to give it its identifier
+            if (counter.ContainsKey(name))
+            {
+                // Already exists machines with that name
+                machines = info.GetValueOrDefault(name, new Dictionary<int, PMachine>());
+                // Add machine with that counter
+                machines?.Add(identifier, machine);
+            }
+            else
+            {
+                // Is the first machine with that name
+                machines = new Dictionary<int, PMachine> { { identifier, machine } };
+            }
+            
+            // Add new information
+            info.TryAdd(name, machines);
+            // Update counter
+            counter.TryAdd(name, identifier + 1);
         }
 
-        public static PrtString GetState(PrtString m)
+        public static ConcurrentDictionary<string, Dictionary<int, PMachine>> GetInfo()
         {
-            return GetInstance()._states.GetValueOrDefault(m, ""none"");
-    }
+            return GetInstance()._info;
+        }
 
-    public bool Equals(IPrtValue other)
-    {
-        return other is tObserver;
-    }
+        public static string Decode(object o)
+        {
+            // Add all P variables converters
+            var options = new JsonSerializerOptions();
+            options.Converters.Add(new PrtIntConverter());
+            options.Converters.Add(new PrtStringConverter());
+            // Serialize object with it type
+            var serialize = JsonSerializer.Serialize(o, o.GetType(), options);
+            // Remove numeric on variables p transcription
+            return Regex.Replace(serialize, @""w*(_\d*)"", """");
+        }
 
-    public IPrtValue Clone()
-    {
-        var cloned = new tObserver();
-        return cloned;
-    }
+        public bool Equals(IPrtValue other)
+        {
+            return other is tObserver;
+        }
 
-    public string ToEscapedString()
-    {
-        return ""Observer"";
+        public IPrtValue Clone()
+        {
+            var cloned = new tObserver();
+            return cloned;
+        }
+
+        public string ToEscapedString()
+        {
+            return ""Observer"";
+        }
     }
-}
 }
 
 ";
 
-        // Implements functions to use observer pattern
+        // PST-P: Implements functions to use observer pattern
         internal static readonly string tObsCsFunctions = @"
 using Plang.CSharpRuntime;
 using Plang.CSharpRuntime.Values;
+using System;
 
 namespace PImplementation
 {
     public static partial class GlobalFunctions
     {
-        public static void SetState(PrtString m, PrtString s, PMachine machine)
+        public static PrtString Decode(object o, PMachine machine)
         {
-            machine.LogLine(""Observer: setting state "" + s + "" to machine "" + m);
-        tObserver.SetState(m, s);
-    }
+            PrtString decode =  tObserver.Decode(o);
+            machine.Log(decode);
 
-    public static PrtString GetState(PrtString m, PMachine machine)
-    {
-        machine.LogLine(""Observer: getting state from machine "" + m);
-        return tObserver.GetState(m);
+            return decode;
+        }
+
+        public static void AddMachine(PrtString name, PMachine machine)
+        {
+            tObserver.AddMachine(name, machine);
+        }
+
+        public static object GetInfo()
+        {
+            return tObserver.GetInfo();
+        }
     }
-}
 }
 ";
-        // Define P global functions to observation pattern
+        // PST-P: Define P global functions to observation pattern
         internal static readonly string tObsP = @"
 type tObserver;
 
-fun SetState(m : string, s: string);
-fun GetState(m : string) : string;
+fun Decode(o: any) : string;
+fun AddMachine(name: string);
+fun GetInfo() : any;
 
 ";
-        // TODO: End custom implementation
+
+        internal static readonly string tConverters = @"
+        using System;
+        using System.Text.Json;
+        using System.Text.Json.Serialization;
+        using Plang.CSharpRuntime.Values;
+
+        namespace PImplementation {
+            public class PrtIntConverter : JsonConverter<PrtInt>
+            {
+                public override PrtInt Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+                {
+                    return reader.GetInt32();
+                }
+
+                public override void Write(Utf8JsonWriter writer, PrtInt value, JsonSerializerOptions options)
+                {
+                    writer.WriteStringValue(((int)value).ToString());
+                }
+            }
+
+            public class PrtStringConverter : JsonConverter<PrtString>
+            {
+                public override PrtString Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+                {
+                    return (PrtString)reader.GetString();
+                }
+
+                public override void Write(Utf8JsonWriter writer, PrtString value, JsonSerializerOptions options)
+                {
+                    writer.WriteStringValue(value.ToString());
+                }
+            }
+        }
+        ";
     }
 }
