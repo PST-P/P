@@ -73,7 +73,7 @@ namespace PImplementation
         {
         }
 
-        public static tObserver GetInstance()
+        private static tObserver GetInstance()
         {
             if (_instance == null)
             {
@@ -92,10 +92,10 @@ namespace PImplementation
             Dictionary<int, PMachine> machines;
 
             // We identify the machine to give it its identifier
-            if (counter.ContainsKey(name))
+            if (info.ContainsKey(name))
             {
                 // Already exists machines with that name
-                machines = info.GetValueOrDefault(name, new Dictionary<int, PMachine>());
+                machines = info.GetOrAdd(name, new Dictionary<int, PMachine>());
                 // Add machine with that counter
                 machines?.Add(identifier, machine);
             }
@@ -103,12 +103,11 @@ namespace PImplementation
             {
                 // Is the first machine with that name
                 machines = new Dictionary<int, PMachine> { { identifier, machine } };
+                info.TryAdd(name, machines);
             }
             
-            // Add new information
-            info.TryAdd(name, machines);
             // Update counter
-            counter.TryAdd(name, identifier + 1);
+            counter[name] = identifier + 1;
         }
 
         public static ConcurrentDictionary<string, Dictionary<int, PMachine>> GetInfo()
