@@ -38,6 +38,8 @@ namespace Plang.Options
             pfilesGroup.AddArgument("pfiles", "pf", "List of P files to compile").IsMultiValue = true;
             pfilesGroup.AddArgument("projname", "pn", "Project name for the compiled output");
             pfilesGroup.AddArgument("outdir", "o", "Dump output to directory (absolute or relative path)");
+            // PST-P: Add backend option
+            pfilesGroup.AddArgument("backend", "b", "Choose between some backends");
 
             var modes = Parser.AddArgument("mode", "m", "Compilation mode :: (bugfinding, verification, coverage, pobserve). (default: bugfinding)");
             modes.AllowedValues = new List<string>() { "bugfinding", "verification", "coverage", "pobserve" };
@@ -162,6 +164,13 @@ namespace Plang.Options
                         };
                         compilerConfiguration.Backend = TargetLanguage.GetCodeGenerator(compilerConfiguration.OutputLanguage);
                     }
+                    break;
+                case "backend":
+                {
+                    compilerConfiguration.OutputLanguage = CompilerOutput.Maude;
+                    compilerConfiguration.Backend =
+                        TargetLanguage.GetCodeGenerator(compilerConfiguration.OutputLanguage);
+                }
                     break;
                 case "pfiles":
                     {

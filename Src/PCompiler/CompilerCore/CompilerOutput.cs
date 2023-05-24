@@ -5,6 +5,8 @@ namespace Plang.Compiler
         C,
         Symbolic,
         CSharp,
-        Java
+        Java,
+        // PST-P: Add maude compiler
+        Maude
     }
 }
