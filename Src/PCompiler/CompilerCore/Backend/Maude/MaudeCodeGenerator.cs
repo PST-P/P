@@ -126,10 +126,10 @@ namespace Plang.Compiler.Backend.Maude
             var testNameLower = $"{char.ToLower(declName[0]) + declName[1..]}M";
 
             // Write op definition for this machine
+            context.WriteLine(output, $"op {declName} : -> Name .");
             context.WriteLine(output, $"op {testNameLower} : -> MachineDecl .");
             context.WriteLine(output, $"op {testNameLower} : -> TestDecl .");
-            context.WriteLine(output, $"op {declName} : -> Name .");
-            
+
             // Search original file to dump (Filename must be equals to machine name
             var strToSearch = $"test {declName}";
             var fileName = context.Job.InputPFiles.First(f => File.ReadAllText(f).Contains(strToSearch));
@@ -149,19 +149,19 @@ namespace Plang.Compiler.Backend.Maude
 
         private static void WriteMachine(CompilationContext context, StringWriter output, Machine machine)
         {
-            var declName = context.Names.GetNameForDecl(machine);
-            var machineNameLower = $"{char.ToLower(declName[0]) + declName[1..]}M";
+            var baseName = machine.Name;
+            var machineName = $"{char.ToLower(baseName[0]) + baseName[1..]}$Machine";
 
             // Write op definition for this machine
-            context.WriteLine(output, $"op {machineNameLower} : -> MachineDecl .");
-            context.WriteLine(output, $"op {declName} : -> Name .");
+            context.WriteLine(output, $"op {baseName} : -> Name .");
+            context.WriteLine(output, $"op {machineName} : -> MachineDecl .");
 
             // Write variables names
             foreach (var field in machine.Fields)
             {
                 context.WriteLine(
                     output,
-                    $"op {context.Names.GetNameForDecl(field)} : -> {GetMaudeType(field.Type)} ."
+                    $"op {field.Name}$Attr : -> {GetMaudeType(field.Type)} ."
                 );
             }
 
@@ -170,17 +170,17 @@ namespace Plang.Compiler.Backend.Maude
             foreach (var state in machine.States)
             {
                 // Get name for declaration
-                var convertedName = context.Names.GetNameForDecl(state).Replace("_", "-");
+                var stateName = $"{state.Name}$State";
                 
                 // Add that name to replace
-                namesToReplace.Add(state.Name, convertedName);
+                namesToReplace.Add(state.Name, stateName);
                 
                 // Add op
-                context.WriteLine(output, $"op {convertedName} : -> Name .");
+                context.WriteLine(output, $"op {stateName} : -> Name .");
             }
             
             // Search original file to dump (Filename must be equals to machine name)
-            var strToSearch = $"machine {declName}";
+            var strToSearch = $"machine {baseName}";
             var fileName = context.Job.InputPFiles.First(f => File.ReadAllText(f).Contains(strToSearch));
             var fileContent = File.ReadAllText(fileName);
             // Split content
@@ -198,7 +198,7 @@ namespace Plang.Compiler.Backend.Maude
 
             // Write machine definition
             context.WriteLine(output);
-            context.WriteLine(output, $"eq {machineNameLower}");
+            context.WriteLine(output, $"eq {machineName}");
             context.WriteLine(output, $"\t= {fileContent} .");
             context.WriteLine(output);
         }
@@ -208,7 +208,7 @@ namespace Plang.Compiler.Backend.Maude
             // Remove comments of one line
             fileContent = Regex.Replace(fileContent, @"//.*", "");
             // Fix white spaces for maude
-            const string patterns = @"(\<\=|\=|\,|\;|\+|\-|\{|\}|\:)";
+            const string patterns = @"(\<\=|\=|\;|\+|\-|\{|\}|\:)";
             fileContent = Regex.Replace(fileContent, $@"{patterns}(?!\s)", "$1 ");
             fileContent = Regex.Replace(fileContent, $@"(?!\s){patterns}", " $1");
 
